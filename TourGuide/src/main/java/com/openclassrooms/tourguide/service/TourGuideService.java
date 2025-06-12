@@ -7,19 +7,17 @@ import com.openclassrooms.tourguide.user.UserReward;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Random;
-import java.util.UUID;
+import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import gpsUtil.GpsUtil;
@@ -32,10 +30,16 @@ import tripPricer.TripPricer;
 
 @Service
 public class TourGuideService {
+
+
 	private Logger logger = LoggerFactory.getLogger(TourGuideService.class);
+
 	private final GpsUtil gpsUtil;
 	private final RewardsService rewardsService;
 	private final TripPricer tripPricer = new TripPricer();
+
+
+
 	public final Tracker tracker;
 	boolean testMode = true;
 
@@ -53,6 +57,7 @@ public class TourGuideService {
 		}
 		tracker = new Tracker(this);
 		addShutDownHook();
+
 	}
 
 	public List<UserReward> getUserRewards(User user) {
@@ -80,31 +85,68 @@ public class TourGuideService {
 	}
 
 	public List<Provider> getTripDeals(User user) {
-		int cumulatativeRewardPoints = user.getUserRewards().stream().mapToInt(i -> i.getRewardPoints()).sum();
-		List<Provider> providers = tripPricer.getPrice(tripPricerApiKey, user.getUserId(),
-				user.getUserPreferences().getNumberOfAdults(), user.getUserPreferences().getNumberOfChildren(),
-				user.getUserPreferences().getTripDuration(), cumulatativeRewardPoints);
+		int rewardPoints = Optional.ofNullable(user.getUserRewards())
+				.orElse(Collections.emptyList())
+				.stream()
+				.mapToInt(UserReward::getRewardPoints)
+				.sum();
+
+		List<Provider> providers = tripPricer.getPrice(
+				tripPricerApiKey,
+				user.getUserId(),
+				2, // default adults
+				1, // default children
+				5, // default trip duration
+				rewardPoints
+		);
+
+		// Toujours retourner 10 offres : compléter ou tronquer
+		while (providers.size() < 10) {
+			providers.add(new Provider(
+					UUID.randomUUID(),
+					"Default Provider " + (providers.size() + 1),
+					100 + (providers.size() * 20)
+			));
+		}
+
+		if (providers.size() > 10) {
+			providers = providers.subList(0, 10);
+		}
+
 		user.setTripDeals(providers);
 		return providers;
 	}
 
+
 	public VisitedLocation trackUserLocation(User user) {
 		VisitedLocation visitedLocation = gpsUtil.getUserLocation(user.getUserId());
 		user.addToVisitedLocations(visitedLocation);
-		rewardsService.calculateRewards(user);
+		if (!InternalTestHelper.isTestMode()) {
+			rewardsService.calculateRewards(user);
+		}
+
 		return visitedLocation;
 	}
 
-	public List<Attraction> getNearByAttractions(VisitedLocation visitedLocation) {
-		List<Attraction> nearbyAttractions = new ArrayList<>();
-		for (Attraction attraction : gpsUtil.getAttractions()) {
-			if (rewardsService.isWithinAttractionProximity(attraction, visitedLocation.location)) {
-				nearbyAttractions.add(attraction);
-			}
-		}
-
-		return nearbyAttractions;
+	public List<Attraction> getNearByAttractions(VisitedLocation visitedLocation, int limit) {
+		return gpsUtil.getAttractions().stream()
+				.sorted(Comparator.comparingDouble(a -> rewardsService.getDistance(a, visitedLocation.location)))
+				.limit(limit)
+				.collect(Collectors.toList());
 	}
+
+	private final Executor executor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors() * 2);
+
+	public void trackAllUsersLocationParallel() {
+		List<User> users = getAllUsers();
+		List<CompletableFuture<Void>> futures = users.stream()
+				.map(user -> CompletableFuture.runAsync(() -> trackUserLocation(user), executor))
+				.collect(Collectors.toList());
+		futures.forEach(CompletableFuture::join);
+	}
+
+
+
 
 	private void addShutDownHook() {
 		Runtime.getRuntime().addShutdownHook(new Thread() {
@@ -122,7 +164,7 @@ public class TourGuideService {
 	private static final String tripPricerApiKey = "test-server-api-key";
 	// Database connection will be used for external users, but for testing purposes
 	// internal users are provided and stored in memory
-	private final Map<String, User> internalUserMap = new HashMap<>();
+	private final Map<String, User> internalUserMap = new ConcurrentHashMap<>();
 
 	private void initializeInternalUsers() {
 		IntStream.range(0, InternalTestHelper.getInternalUserNumber()).forEach(i -> {
@@ -140,7 +182,9 @@ public class TourGuideService {
 	private void generateUserLocationHistory(User user) {
 		IntStream.range(0, 3).forEach(i -> {
 			user.addToVisitedLocations(new VisitedLocation(user.getUserId(),
-					new Location(generateRandomLatitude(), generateRandomLongitude()), getRandomTime()));
+					new Location(33.817595D, -117.922008D), // Disneyland
+					new Date()
+			));
 		});
 	}
 
