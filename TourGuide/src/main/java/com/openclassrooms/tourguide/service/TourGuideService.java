@@ -1,5 +1,6 @@
 package com.openclassrooms.tourguide.service;
 
+import com.openclassrooms.tourguide.dto.NearbyAttractionDTO;
 import com.openclassrooms.tourguide.helper.InternalTestHelper;
 import com.openclassrooms.tourguide.tracker.Tracker;
 import com.openclassrooms.tourguide.user.User;
@@ -9,15 +10,13 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import gpsUtil.GpsUtil;
@@ -30,23 +29,17 @@ import tripPricer.TripPricer;
 
 @Service
 public class TourGuideService {
-
-
 	private Logger logger = LoggerFactory.getLogger(TourGuideService.class);
-
 	private final GpsUtil gpsUtil;
 	private final RewardsService rewardsService;
 	private final TripPricer tripPricer = new TripPricer();
-
-
-
 	public final Tracker tracker;
 	boolean testMode = true;
 
 	public TourGuideService(GpsUtil gpsUtil, RewardsService rewardsService) {
 		this.gpsUtil = gpsUtil;
 		this.rewardsService = rewardsService;
-		
+
 		Locale.setDefault(Locale.US);
 
 		if (testMode) {
@@ -57,7 +50,6 @@ public class TourGuideService {
 		}
 		tracker = new Tracker(this);
 		addShutDownHook();
-
 	}
 
 	public List<UserReward> getUserRewards(User user) {
@@ -85,67 +77,45 @@ public class TourGuideService {
 	}
 
 	public List<Provider> getTripDeals(User user) {
-		int rewardPoints = Optional.ofNullable(user.getUserRewards())
-				.orElse(Collections.emptyList())
-				.stream()
-				.mapToInt(UserReward::getRewardPoints)
-				.sum();
+		int cumulatativeRewardPoints = user.getUserRewards().stream().mapToInt(i -> i.getRewardPoints()).sum();
 
-		List<Provider> providers = tripPricer.getPrice(
-				tripPricerApiKey,
-				user.getUserId(),
-				2, // default adults
-				1, // default children
-				5, // default trip duration
-				rewardPoints
-		);
-
-		// Toujours retourner 10 offres : compléter ou tronquer
-		while (providers.size() < 10) {
-			providers.add(new Provider(
-					UUID.randomUUID(),
-					"Default Provider " + (providers.size() + 1),
-					100 + (providers.size() * 20)
-			));
-		}
-
-		if (providers.size() > 10) {
-			providers = providers.subList(0, 10);
-		}
-
+		List<Provider> providers = tripPricer.getPrice(tripPricerApiKey, user.getUserId(),
+				user.getUserPreferences().getNumberOfAdults(), user.getUserPreferences().getNumberOfChildren(),
+				user.getUserPreferences().getTripDuration(), cumulatativeRewardPoints);
 		user.setTripDeals(providers);
+
 		return providers;
 	}
-
 
 	public VisitedLocation trackUserLocation(User user) {
 		VisitedLocation visitedLocation = gpsUtil.getUserLocation(user.getUserId());
 		user.addToVisitedLocations(visitedLocation);
-		if (!InternalTestHelper.isTestMode()) {
-			rewardsService.calculateRewards(user);
-		}
-
+		rewardsService.calculateRewards(user);
 		return visitedLocation;
 	}
 
-	public List<Attraction> getNearByAttractions(VisitedLocation visitedLocation, int limit) {
-		return gpsUtil.getAttractions().stream()
-				.sorted(Comparator.comparingDouble(a -> rewardsService.getDistance(a, visitedLocation.location)))
+	public List<NearbyAttractionDTO> getNearByAttractions(User user, VisitedLocation visitedLocation, int limit) {
+		List<NearbyAttractionDTO> nearbyAttractions = gpsUtil.getAttractions().stream()
+				.map(attraction -> {
+					double distance = rewardsService.getDistance(attraction, visitedLocation.location);
+					int rewardPoints = rewardsService.getRewardPoints(attraction, user);
+
+					return new NearbyAttractionDTO(
+							attraction.attractionName,
+							attraction.latitude,
+							attraction.longitude,
+							visitedLocation.location.latitude,
+							visitedLocation.location.longitude,
+							distance,
+							rewardPoints
+					);
+				})
+				.sorted(Comparator.comparingDouble(NearbyAttractionDTO::getDistance))  // Tri par distance croissante
 				.limit(limit)
 				.collect(Collectors.toList());
+
+		return nearbyAttractions;
 	}
-
-	private final Executor executor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors() * 2);
-
-	public void trackAllUsersLocationParallel() {
-		List<User> users = getAllUsers();
-		List<CompletableFuture<Void>> futures = users.stream()
-				.map(user -> CompletableFuture.runAsync(() -> trackUserLocation(user), executor))
-				.collect(Collectors.toList());
-		futures.forEach(CompletableFuture::join);
-	}
-
-
 
 
 	private void addShutDownHook() {
@@ -157,14 +127,14 @@ public class TourGuideService {
 	}
 
 	/**********************************************************************************
-	 * 
+	 *
 	 * Methods Below: For Internal Testing
-	 * 
+	 *
 	 **********************************************************************************/
 	private static final String tripPricerApiKey = "test-server-api-key";
 	// Database connection will be used for external users, but for testing purposes
 	// internal users are provided and stored in memory
-	private final Map<String, User> internalUserMap = new ConcurrentHashMap<>();
+	private final Map<String, User> internalUserMap = new HashMap<>();
 
 	private void initializeInternalUsers() {
 		IntStream.range(0, InternalTestHelper.getInternalUserNumber()).forEach(i -> {
@@ -182,9 +152,7 @@ public class TourGuideService {
 	private void generateUserLocationHistory(User user) {
 		IntStream.range(0, 3).forEach(i -> {
 			user.addToVisitedLocations(new VisitedLocation(user.getUserId(),
-					new Location(33.817595D, -117.922008D), // Disneyland
-					new Date()
-			));
+					new Location(generateRandomLatitude(), generateRandomLongitude()), getRandomTime()));
 		});
 	}
 
@@ -204,5 +172,14 @@ public class TourGuideService {
 		LocalDateTime localDateTime = LocalDateTime.now().minusDays(new Random().nextInt(30));
 		return Date.from(localDateTime.toInstant(ZoneOffset.UTC));
 	}
+	public void trackAllUsersInParallel(List<User> users) {
+		ExecutorService executor = Executors.newFixedThreadPool(128); // à ajuster selon ta machine
+		List<CompletableFuture<Void>> futures = users.stream()
+				.map(user -> CompletableFuture.runAsync(() -> trackUserLocation(user), executor))
+				.toList();
+		CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+		executor.shutdown();
+	}
+
 
 }
