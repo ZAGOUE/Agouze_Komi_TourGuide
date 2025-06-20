@@ -7,7 +7,9 @@ on:
     branches: [ "master" ]
 
 jobs:
+
   build:
+    name: 🔨 Build project
     runs-on: ubuntu-latest
 
     steps:
@@ -21,25 +23,52 @@ jobs:
           java-version: '17'
 
       - name: Build with Maven
-        run: mvn -B package
-        working-directory: ./TourGuide
+        run: mvn -B clean package
 
-      - name: Archive production artifact
+      - name: Archive JAR
         uses: actions/upload-artifact@v4
         with:
           name: tourguide-jar
-          path: TourGuide/target/*.jar
+          path: target/*.jar
 
-      - name: Run unit tests
+  test:
+    name: ✅ Run unit tests
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Run tests with Maven
         run: mvn test
-        working-directory: ./TourGuide
+
+  coverage:
+    name: 📊 Generate JaCoCo Report
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
 
       - name: Generate JaCoCo report
         run: mvn jacoco:report
-        working-directory: ./TourGuide
 
       - name: Archive JaCoCo report
         uses: actions/upload-artifact@v4
         with:
           name: jacoco-report
-          path: TourGuide/target/site/jacoco/
+          path: target/site/jacoco/
