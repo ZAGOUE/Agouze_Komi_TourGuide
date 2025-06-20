@@ -24,13 +24,12 @@ jobs:
 
       - name: Build with Maven
         run: mvn -B clean package
-        working-directory: ./Agouze_Komi_TourGuide
 
       - name: Archive JAR
         uses: actions/upload-artifact@v4
         with:
           name: tourguide-jar
-          path: Agouze_Komi_TourGuide/target/*.jar
+          path: target/*.jar
 
   test:
     name: Run unit tests
@@ -49,7 +48,6 @@ jobs:
 
       - name: Run tests with Maven
         run: mvn test
-        working-directory: ./Agouze_Komi_TourGuide
 
   coverage:
     name: Generate JaCoCo Report
@@ -68,10 +66,9 @@ jobs:
 
       - name: Generate JaCoCo report
         run: mvn jacoco:report
-        working-directory: ./Agouze_Komi_TourGuide
 
       - name: Archive JaCoCo report
         uses: actions/upload-artifact@v4
         with:
           name: jacoco-report
-          path: Agouze_Komi_TourGuide/target/site/jacoco/
+          path: target/site/jacoco/
