@@ -1,8 +1,10 @@
 # Technologies
+[![codecov](https://codecov.io/gh/ZAGOUE/Agouze_Komi_TourGuide/branch/master/graph/badge.svg)](https://codecov.io/gh/ZAGOUE/Agouze_Komi_TourGuide)
+[![Build Status](https://github.com/ZAGOUE/Agouze_Komi_TourGuide/actions/workflows/ci.yml/badge.svg)](https://github.com/ZAGOUE/Agouze_Komi_TourGuide/actions)
 
 > Java 17  
 > Spring Boot 3.X  
-> JUnit 5  
+> JUnit 5
 
 # How to have gpsUtil, rewardCentral and tripPricer dependencies available ?
 
@@ -14,7 +16,7 @@
 
 
 
-## 🧱 Architecture
+## Architecture
 
 ```
 
@@ -32,7 +34,7 @@ Projet\_8/
 
 ---
 
-## 🚀 Fonctionnalités clés
+## Fonctionnalités clés
 
 - Suivi de la position des utilisateurs (simulation `gpsUtil`)
 - Attribution de récompenses automatiques (via `RewardsCentral`)
@@ -63,7 +65,7 @@ mvn jacoco:report
 Le rapport JaCoCo est généré dans :
 
 ```
-TourGuide/target/site/jacoco/index.html
+target/site/jacoco/index.html
 ```
 
 ---
