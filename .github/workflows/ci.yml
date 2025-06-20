@@ -9,7 +9,7 @@ on:
 jobs:
 
   build:
-    name: 🔨 Build project
+    name: Build project
     runs-on: ubuntu-latest
 
     steps:
@@ -24,15 +24,16 @@ jobs:
 
       - name: Build with Maven
         run: mvn -B clean package
+        working-directory: ./Agouze_Komi_TourGuide
 
       - name: Archive JAR
         uses: actions/upload-artifact@v4
         with:
           name: tourguide-jar
-          path: target/*.jar
+          path: Agouze_Komi_TourGuide/target/*.jar
 
   test:
-    name: ✅ Run unit tests
+    name: Run unit tests
     runs-on: ubuntu-latest
     needs: build
 
@@ -48,9 +49,10 @@ jobs:
 
       - name: Run tests with Maven
         run: mvn test
+        working-directory: ./Agouze_Komi_TourGuide
 
   coverage:
-    name: 📊 Generate JaCoCo Report
+    name: Generate JaCoCo Report
     runs-on: ubuntu-latest
     needs: test
 
@@ -66,9 +68,10 @@ jobs:
 
       - name: Generate JaCoCo report
         run: mvn jacoco:report
+        working-directory: ./Agouze_Komi_TourGuide
 
       - name: Archive JaCoCo report
         uses: actions/upload-artifact@v4
         with:
           name: jacoco-report
-          path: target/site/jacoco/
+          path: Agouze_Komi_TourGuide/target/site/jacoco/
