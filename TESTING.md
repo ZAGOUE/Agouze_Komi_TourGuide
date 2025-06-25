@@ -2,8 +2,10 @@
 
 ## Objectif
 
-Ce document décrit les tests réalisés dans le cadre du projet **TourGuide**, les bugs rencontrés, les corrections apportées et les choix justifiés lorsque le comportement d’un composant (notamment les JAR fournis) différait de l’attendu.  
-L’objectif est de fournir un **suivi clair** des cas de test, des décisions techniques prises et des modifications du code effectuées pour assurer la conformité fonctionnelle.
+Ce document décrit les tests réalisés dans le cadre du projet **TourGuide**, les bugs rencontrés, les corrections apportées 
+et les choix justifiés lorsque le comportement d’un composant (notamment les JAR fournis) différait de l’attendu.  
+L’objectif est de fournir un **suivi clair** des cas de test, des décisions techniques prises et des modifications du code effectuées 
+pour assurer la conformité fonctionnelle.
 
 ---
 
@@ -39,7 +41,7 @@ Vérifier que l’on renvoie **5 attractions proches** de l'utilisateur (peu imp
 - Revoir la methode getNearByAttractions 
 - Ajout du paramètre `limit` dans `getNearByAttractions(...)`.
 - Rendu de `getRewardPoints(...)` public.
-- Refactoring de la méthode comme suit :
+- Refactoring de la méthode pour qu'elle retourne une `List<Attraction>`(brute), limitée à un nombre d’attractions proches (paramètre limit), selon la localisation visitée.
 
 ```java
 public List<NearbyAttractionDTO> getNearByAttractions(User user, VisitedLocation visitedLocation, int limit) {
@@ -65,6 +67,16 @@ public List<NearbyAttractionDTO> getNearByAttractions(User user, VisitedLocation
     return nearbyAttractions;
 }
 ```
+Dans le controleur, on fait mapping vers nearbyAttractionDTO pour récupérer l'utilisateur par son nom (userName) et 
+on récupère sa dernière position.
+
+```java
+public List<NearbyAttractionDTO> getNearbyAttractions(@RequestParam String userName) {
+    User user = getUser(userName); 
+    VisitedLocation visitedLocation = tourGuideService.getUserLocation(user); 
+    Location userLocation = visitedLocation.location;
+    ...}
+```
 
 * Le test est mis à jour pour appeler la méthode correctement :
 
@@ -87,7 +99,8 @@ Tester que 10 offres de voyage sont proposées via le service `TripPricer`.
 
 ### Problème rencontré
 
-* La méthode `tripPricer.getPrice(...)` (dans la bibliothèque JAR fournie) retourne **5 résultats** alors que le test fourni attend **10** : `assertEquals(10, providers.size())`.
+* La méthode `tripPricer.getPrice(...)` (dans la bibliothèque JAR fournie) retourne **5 résultats** 
+alors que le test fourni attend **10** : `assertEquals(10, providers.size())`.
 
 ### Limite technique
 
@@ -183,7 +196,7 @@ Le test passe sans modification du code source, grâce à la configuration dynam
 
 ## Autres considérations 
 
-* Originalement :
+* Originalement dans la méthode `isWithinAttractionProximity()`  :
 
 ```java
 return getDistance(attraction, location) > attractionProximityRange ? false : true;
@@ -222,7 +235,7 @@ La méthode trackUserLocation(user) est appelée de manière séquentielle, ce q
 
 ## Solution :
 Il faut paralléliser les appels au service de géolocalisation, et ce type d’optimisation doit être effectué dans le service et non dans les tests.
-Nous avons ajouté une méthode parallèle dans TourGuideService via CompletableFuture ou ExecutorService. Voici le changement effectué :
+Nous avons ajouté une méthode parallèle dans TourGuideService via CompletableFuture et ExecutorService. Voici le changement effectué :
 ```java
 public void trackAllUsersInParallel(List<User> users) {
 ExecutorService executor = Executors.newFixedThreadPool(128);
@@ -269,4 +282,47 @@ rewardsService.calculateRewardsInParallel(allUsers);
 ```
 ## Résultat
 Les tests passent maintenant au vert pour 100 000 utilisateurs, et respectent les contraintes de temps (15 à 20 minutes).
-Les optimisations de parallélisation ont permis de rendre les tests réalistes pour un environnement de production, et ont respecté les consignes du sujet qui autorisent les modifications dans les services, mais interdisent les changements dans les tests eux-mêmes.
+Les optimisations de parallélisation ont permis de rendre les tests réalistes pour un environnement de production, 
+et ont respecté les consignes du sujet qui autorisent les modifications dans les services, mais interdisent les changements dans les tests eux-mêmes.
+
+## Concurrence en Java ?
+
+La concurrence en Java désigne la capacité à exécuter plusieurs tâches simultanément dans un même programme. Elle permet de :
+•	Gérer plusieurs threads (flux d’exécution) en parallèle
+•	Accélérer les traitements intensifs (ex. : géolocalisation, calcul de récompenses)
+•	Optimiser les performances sans bloquer l’interface ou les autres tâches
+
+Dans le projet, deux zones critiques sont particulièrement concernées :
+1.	`trackUserLocation(user)` → appel lent car chaque utilisateur déclenche un appel distant à GpsUtil
+2.	`calculateRewards(user)` → dépend de RewardCentral + traitement lourd
+Sans concurrence, ces appels sont séquentiels, donc extrêmement longs avec beaucoup d’utilisateurs.
+
+La concurrence java a été mis en œuvre à l’intérieur des services, notamment via `ExecutorService et ConcurrentHashMap`
+
+Cela nous a permis de garantir que le code était thread-safe et que les appels bloquants pouvaient être parallélisés efficacement. 
+Aucun test n’a été modifié ; seules les classes métiers ont été corrigées.
+
+`ExecutorService`:  Pour traiter plusieurs utilisateurs en parallèle
+`CompletableFuture`: Pour controller le flux
+`ConcurrentHashMap`: Pour sécuriser le stockage des utilisateurs.
+Dans ToutGuideService :
+```java
+private final Map<String, User> internalUserMap = new ConcurrentHashMap<>();
+```
+Pour garantir la sécurité des accès aux collections manipulées en parallèle dans les services de géolocalisation et d’attribution de récompenses, 
+nous avons remplacé les ArrayList par des implémentations thread-safe (CopyOnWriteArrayList). 
+Cette mesure permet d’éviter les effets de bord et les erreurs imprévisibles dans un environnement concurrent.
+
+```java
+private List<VisitedLocation> visitedLocations = Collections.synchronizedList(new ArrayList<>());
+private List<UserReward> userRewards = Collections.synchronizedList(new ArrayList<>());
+private UserPreferences userPreferences = new UserPreferences();
+private List<Provider> tripDeals = Collections.synchronizedList(new ArrayList<>());
+```
+
+```java
+private List<VisitedLocation> visitedLocations = new CopyOnWriteArrayList<>();
+private List<UserReward> userRewards = new CopyOnWriteArrayList<>();
+private UserPreferences userPreferences = new UserPreferences();
+private List<Provider> tripDeals = new CopyOnWriteArrayList<>();
+```
