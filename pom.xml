@@ -21,9 +21,15 @@
 		<java.version>17</java.version>
 	</properties>
 
+	<!-- Ajout du repository local pour les .jar -->
+	<repositories>
+		<repository>
+			<id>local-libs</id>
+			<url>file://${project.basedir}/libs</url>
+		</repository>
+	</repositories>
+
 	<dependencies>
-
-
 
 		<!-- Spring Boot -->
 		<dependency>
@@ -59,21 +65,29 @@
 			<scope>test</scope>
 		</dependency>
 
+		<!-- Libs locales -->
 		<dependency>
 			<groupId>gpsUtil</groupId>
 			<artifactId>gpsUtil</artifactId>
 			<version>1.0.0</version>
+			<scope>system</scope>
+			<systemPath>${project.basedir}/libs/gpsUtil.jar</systemPath>
 		</dependency>
 		<dependency>
 			<groupId>rewardCentral</groupId>
 			<artifactId>rewardCentral</artifactId>
 			<version>1.0.0</version>
+			<scope>system</scope>
+			<systemPath>${project.basedir}/libs/RewardCentral.jar</systemPath>
 		</dependency>
 		<dependency>
 			<groupId>tripPricer</groupId>
 			<artifactId>tripPricer</artifactId>
 			<version>1.0.0</version>
+			<scope>system</scope>
+			<systemPath>${project.basedir}/libs/TripPricer.jar</systemPath>
 		</dependency>
+
 	</dependencies>
 
 	<build>
@@ -110,8 +124,14 @@
 				<artifactId>maven-surefire-report-plugin</artifactId>
 				<version>3.2.5</version>
 			</plugin>
-
-
+			<plugin>
+				<groupId>org.springframework.boot</groupId>
+				<artifactId>spring-boot-maven-plugin</artifactId>
+				<configuration>
+					<includeSystemScope>true</includeSystemScope>
+					<mainClass>com.openclassrooms.tourguide.TourguideApplication</mainClass>
+				</configuration>
+			</plugin>
 		</plugins>
 	</build>
 
