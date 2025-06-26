@@ -1,18 +1,40 @@
-# Technologies
+# Projet TourGuide
+
+## 🔧 Intégration Continue
+
+[![Build Status](https://github.com/ZAGOUE/Agouze_Komi_TourGuide/actions/workflows/build.yml/badge.svg)](https://github.com/ZAGOUE/Agouze_Komi_TourGuide/actions)
+![Test](https://github.com/ZAGOUE/Agouze_Komi_TourGuide/actions/workflows/test.yml/badge.svg)
+![Coverage](https://github.com/ZAGOUE/Agouze_Komi_TourGuide/actions/workflows/coverage.yml/badge.svg)
+[![Docs view](https://github.com/ZAGOUE/Agouze_Komi_TourGuide/actions/workflows/docs.yml/badge.svg)](https://zagoue.github.io/Agouze_Komi_TourGuide/)
+![Docker](https://github.com/ZAGOUE/Agouze_Komi_TourGuide/actions/workflows/docker.yml/badge.svg)
 [![codecov](https://codecov.io/gh/ZAGOUE/Agouze_Komi_TourGuide/branch/master/graph/badge.svg)](https://codecov.io/gh/ZAGOUE/Agouze_Komi_TourGuide)
-[![Build Status](https://github.com/ZAGOUE/Agouze_Komi_TourGuide/actions/workflows/ci.yml/badge.svg)](https://github.com/ZAGOUE/Agouze_Komi_TourGuide/actions)
 
-> Java 17  
-> Spring Boot 3.X  
-> JUnit 5
+---
 
-# How to have gpsUtil, rewardCentral and tripPricer dependencies available ?
+## ⚙️ Technologies
 
-> Run : 
-- mvn install:install-file -Dfile=/libs/gpsUtil.jar -DgroupId=gpsUtil -DartifactId=gpsUtil -Dversion=1.0.0 -Dpackaging=jar  
-- mvn install:install-file -Dfile=/libs/RewardCentral.jar -DgroupId=rewardCentral -DartifactId=rewardCentral -Dversion=1.0.0 -Dpackaging=jar  
-- mvn install:install-file -Dfile=/libs/TripPricer.jar -DgroupId=tripPricer -DartifactId=tripPricer -Dversion=1.0.0 -Dpackaging=jar
+- Java 17
+- Spring Boot 3.x
+- JUnit 5
+- Docker / GitHub Actions
 
+---
+
+## 📦 Installation des dépendances locales (gpsUtil, RewardCentral, TripPricer)
+
+Ces librairies tierces ne sont pas disponibles sur Maven Central.
+
+**Avant de compiler ou de dockeriser le projet, exécutez** :
+
+```bash
+mvn install:install-file -Dfile=libs/gpsUtil.jar -DgroupId=gpsUtil -DartifactId=gpsUtil -Dversion=1.0.0 -Dpackaging=jar
+mvn install:install-file -Dfile=libs/RewardCentral.jar -DgroupId=rewardCentral -DartifactId=rewardCentral -Dversion=1.0.0 -Dpackaging=jar
+mvn install:install-file -Dfile=libs/TripPricer.jar -DgroupId=tripPricer -DartifactId=tripPricer -Dversion=1.0.0 -Dpackaging=jar
+```
+
+> Ces JAR sont ensuite déclarés comme dépendances Maven **standard** dans le `pom.xml`.
+
+---
 
 
 
@@ -20,24 +42,29 @@
 
 ```
 
-Projet\_8/
-├── .github/workflows/ci.yml       # Pipeline CI/CD
-├── TourGuide/
-│   ├── src/
-│   │   ├── main/java              # Code source
-│   │   └── test/java              # Tests unitaires et de charge
-│   ├── pom.xml                    # Projet Maven
-│   ├── README.md                  # Documentation du projet
-│   └── TESTING.md                 # Détail des tests effectués
+Projet_8_TourGuide/
+├── libs/
+│   ├── gpsUtil.jar
+│   ├── RewardCentral.jar
+│   └── TripPricer.jar
+├── src/
+│   ├── main/java
+│   ├── test/java
+│   
+├── pom.xml
+├── Dockerfile
+├── README.md
+├── TESTING.md
+└── ...
 
 ````
 
----
 
 ## Fonctionnalités clés
 
 - Suivi de la position des utilisateurs (simulation `gpsUtil`)
 - Attribution de récompenses automatiques (via `RewardsCentral`)
+- Recommandations touristiques (via `TripPricer`)
 - Tests unitaires avec JaCoCo
 - Tests de performance (jusqu’à 100k utilisateurs)
 - CI/CD avec GitHub Actions
@@ -82,12 +109,56 @@ target/site/jacoco/index.html
 Le pipeline CI se déclenche automatiquement :
 
 * À chaque `push` ou `pull_request` sur la branche `master`
-* Il compile le projet, exécute les tests et archive :
 
-    * Le `.jar` final
-    * Le rapport de couverture JaCoCo
+Il comprend :
+- Compilation
+- Tests unitaires
+- Analyse de couverture
+- Build Docker
+- Génération de la documentation
+
 
 ---
+## 🐳 Docker
+
+### Construction de l'image
+
+```bash
+docker build -t tourguide-app .
+```
+
+### Exécution du conteneur
+
+```bash
+docker run -p 8080:8080 tourguide-app
+```
+
+### Dockerfile utilisé
+
+```Dockerfile
+# Étape 1 : build avec Maven + JDK 17
+FROM maven:3.9.5-eclipse-temurin-17 AS build
+WORKDIR /app
+
+# Copie du projet avec les libs
+
+COPY . .
+```
+# Installation des dépendances locales
+RUN mvn install:install-file -Dfile=libs/gpsUtil.jar -DgroupId=gpsUtil -DartifactId=gpsUtil -Dversion=1.0.0 -Dpackaging=jar &&     \
+    mvn install:install-file -Dfile=libs/RewardCentral.jar -DgroupId=rewardCentral -DartifactId=rewardCentral -Dversion=1.0.0 -Dpackaging=jar &&     \
+    mvn install:install-file -Dfile=libs/TripPricer.jar -DgroupId=tripPricer -DartifactId=tripPricer -Dversion=1.0.0 -Dpackaging=jar &&     \
+    mvn clean package -DskipTests
+
+# Étape 2 : exécution plus légère
+FROM eclipse-temurin:17-jdk
+WORKDIR /app
+COPY --from=build /app/target/*.jar app.jar
+EXPOSE 8080
+ENTRYPOINT ["java", "-jar", "app.jar"]
+```
+
+```
 
 
 
