@@ -123,5 +123,5 @@ jobs:
           context: .
           push: true
           tags: |
-            yourdockerhubusername/tourguide:latest
-            yourdockerhubusername/tourguide:${{ github.sha }}
+            zagoue/tourguide:latest
+            zagoue/tourguide:${{ github.sha }}
