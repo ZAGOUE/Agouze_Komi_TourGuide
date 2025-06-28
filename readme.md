@@ -2,13 +2,10 @@
 
 ## 🔧 Intégration Continue
 
-[![Build Status](https://github.com/ZAGOUE/Agouze_Komi_TourGuide/actions/workflows/build.yml/badge.svg)](https://github.com/ZAGOUE/Agouze_Komi_TourGuide/actions)
-![Test](https://github.com/ZAGOUE/Agouze_Komi_TourGuide/actions/workflows/test.yml/badge.svg)
-![Coverage](https://github.com/ZAGOUE/Agouze_Komi_TourGuide/actions/workflows/coverage.yml/badge.svg)
-[![Docs view](https://github.com/ZAGOUE/Agouze_Komi_TourGuide/actions/workflows/docs.yml/badge.svg)](https://zagoue.github.io/Agouze_Komi_TourGuide/)
-![Docker](https://github.com/ZAGOUE/Agouze_Komi_TourGuide/actions/workflows/docker.yml/badge.svg)
+[![CI](https://github.com/ZAGOUE/Agouze_Komi_TourGuide/actions/workflows/ci.yml/badge.svg)](https://github.com/ZAGOUE/Agouze_Komi_TourGuide/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/ZAGOUE/Agouze_Komi_TourGuide/branch/master/graph/badge.svg)](https://codecov.io/gh/ZAGOUE/Agouze_Komi_TourGuide)
 
+[📚 Documentation](https://zagoue.github.io/Agouze_Komi_TourGuide/)
 ---
 
 ## ⚙️ Technologies

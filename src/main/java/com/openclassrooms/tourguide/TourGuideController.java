@@ -60,8 +60,8 @@ public class TourGuideController {
         //    Note: Attraction reward points can be gathered from RewardsCentral
     @RequestMapping("/getNearbyAttractions")
     public List<NearbyAttractionDTO> getNearbyAttractions(@RequestParam String userName) {
-        User user = getUser(userName);  // Récupérer l'utilisateur par son nom
-        VisitedLocation visitedLocation = tourGuideService.getUserLocation(user); // Obtenir la localisation de l'utilisateur
+        User user = getUser(userName);
+        VisitedLocation visitedLocation = tourGuideService.getUserLocation(user);
         Location userLocation = visitedLocation.location;
 
         // Récupérer toutes les attractions
@@ -76,13 +76,13 @@ public class TourGuideController {
                     double distance = rewardsService.getDistance(attraction, userLocation);
                     int rewardPoints = rewardsService.getRewardPoints(attraction, user);
                     return new NearbyAttractionDTO(
-                            attraction.attractionName,  // Nom de l'attraction
-                            attraction.latitude,        // Latitude de l'attraction
-                            attraction.longitude,       // Longitude de l'attraction
-                            userLocation.latitude,      // Latitude de l'utilisateur
-                            userLocation.longitude,     // Longitude de l'utilisateur
-                            distance,                   // Distance entre l'attraction et l'utilisateur
-                            rewardPoints                // Points de récompense pour l'attraction
+                            attraction.attractionName,
+                            attraction.latitude,
+                            attraction.longitude,
+                            userLocation.latitude,
+                            userLocation.longitude,
+                            distance,
+                            rewardPoints
                     );
                 })
                 .collect(Collectors.toList());

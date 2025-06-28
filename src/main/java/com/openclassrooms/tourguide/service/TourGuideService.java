@@ -111,7 +111,7 @@ public class TourGuideService {
 							rewardPoints
 					);
 				})
-				.sorted(Comparator.comparingDouble(NearbyAttractionDTO::getDistance))  // Tri par distance croissante
+				.sorted(Comparator.comparingDouble(NearbyAttractionDTO::getDistance))
 				.limit(limit)
 				.collect(Collectors.toList());
 
@@ -174,7 +174,7 @@ public class TourGuideService {
 		return Date.from(localDateTime.toInstant(ZoneOffset.UTC));
 	}
 	public void trackAllUsersInParallel(List<User> users) {
-		ExecutorService executor = Executors.newFixedThreadPool(128); // à ajuster selon ta machine
+		ExecutorService executor = Executors.newFixedThreadPool(128);
 		List<CompletableFuture<Void>> futures = users.stream()
 				.map(user -> CompletableFuture.runAsync(() -> trackUserLocation(user), executor))
 				.toList();
