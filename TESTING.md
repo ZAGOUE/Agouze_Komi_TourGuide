@@ -4,8 +4,8 @@
 
 Ce document décrit les tests réalisés dans le cadre du projet **TourGuide**, les bugs rencontrés, les corrections apportées 
 et les choix justifiés lorsque le comportement d’un composant (notamment les JAR fournis) différait de l’attendu.  
-L’objectif est de fournir un **suivi clair** des cas de test, des décisions techniques prises et des modifications du code effectuées 
-pour assurer la conformité fonctionnelle.
+L’objectif est de fournir un **suivi clair** des cas de test, des décisions techniques prises 
+et des modifications du code effectuées pour assurer la conformité fonctionnelle.
 
 ---
 
@@ -14,14 +14,14 @@ pour assurer la conformité fonctionnelle.
 À l’origine, certains tests unitaires étaient annotés avec `@Disabled`. 
 `TestPerformance`: deux tests avec `@Disabled`
 `TestRewardsService:` un test avec `@Disabled`
-`TestTourGuideService` : un test avec @Disabled et un test sans `@Test`
+`TestTourGuideService` : un test avec @Disabled et un test sans `@Test` (`getTripDeals()`)
 
 Ces tests ont été réactivés, corrigés et validés.  
 Les fichiers concernés sont :
 - `TestTourGuideService.java` : **6 tests, tous passent.**
 - `TestRewardsService.java` : **3 tests, tous passent.**
 
-## Test : `getNearbyAttractions()`
+## Test : `getNearbyAttractions()` (`TestRewardsService.java`)
 
 ### Objectif
 
@@ -40,9 +40,14 @@ Vérifier que l’on renvoie **5 attractions proches** de l'utilisateur (peu imp
 - Création de la classe `NearbyAttractionDTO`.
 - Revoir la methode getNearByAttractions 
 - Ajout du paramètre `limit` dans `getNearByAttractions(...)`.
-- Rendu de `getRewardPoints(...)` public.
-- Refactoring de la méthode pour qu'elle retourne une `List<Attraction>`(brute), limitée à un nombre d’attractions proches (paramètre limit), selon la localisation visitée.
-
+- Rendu de `getRewardPoints(...)` public dans `RewardService`.
+- Refactoring de la méthode pour qu'elle retourne une `List<Attraction>`(brute), 
+- limitée à un nombre d’attractions proches (paramètre limit), selon la localisation visitée.
+```java
+public int getRewardPoints(Attraction attraction, User user) {
+		return rewardsCentral.getAttractionRewardPoints(attraction.attractionId, user.getUserId());
+	}
+```
 ```java
 public List<NearbyAttractionDTO> getNearByAttractions(User user, VisitedLocation visitedLocation, int limit) {
     List<NearbyAttractionDTO> nearbyAttractions = gpsUtil.getAttractions().stream()
@@ -176,7 +181,7 @@ public void getTripDeals() {
 }
 
 ```
-## Test : `nearAllAttractions()`
+## Test : `nearAllAttractions()` (`TestRewardsService.java`)
 
 ### Objectif
 Tester si l’utilisateur reçoit une récompense pour **chaque attraction** lorsque le rayon de proximité est très grand.
@@ -186,7 +191,8 @@ Tester si l’utilisateur reçoit une récompense pour **chaque attraction** lor
 - Le test vérifie que la taille de `user.getUserRewards()` est égale au nombre total d’attractions disponibles.
 
 ### Cause du passage au vert
-- Par défaut, `TourGuideService` ajoute plusieurs `VisitedLocation` lors de l’appel à `trackUserLocation(...)` même avec `InternalUserNumber(1)`.
+- Par défaut, `TourGuideService` ajoute plusieurs `VisitedLocation` lors de l’appel à `trackUserLocation(...)`
+même avec `InternalUserNumber(1)`.
 - Comme le `proximityBuffer` est immense, toutes les attractions sont jugées proches et `calculateRewards(...)` les traite.
 
 ### Résultat
@@ -231,11 +237,14 @@ return getDistance(attraction, location) <= attractionProximityRange;
 
 
 ## Problème observé :
-La méthode trackUserLocation(user) est appelée de manière séquentielle, ce qui entraîne une exécution bloquante pour 10 000 utilisateurs.
+La méthode trackUserLocation(user) est appelée de manière séquentielle, 
+ce qui entraîne une exécution bloquante pour 10 000 utilisateurs.
 
 ## Solution :
-Il faut paralléliser les appels au service de géolocalisation, et ce type d’optimisation doit être effectué dans le service et non dans les tests.
-Nous avons ajouté une méthode parallèle dans TourGuideService via CompletableFuture et ExecutorService. Voici le changement effectué :
+Il faut paralléliser les appels au service de géolocalisation, 
+et ce type d’optimisation doit être effectué dans le service et non dans les tests.
+Nous avons ajouté une méthode parallèle dans TourGuideService via CompletableFuture et ExecutorService. 
+Voici le changement effectué :
 ```java
 public void trackAllUsersInParallel(List<User> users) {
 ExecutorService executor = Executors.newFixedThreadPool(128);
@@ -252,13 +261,17 @@ Le test a ensuite été modifié pour appeler cette méthode parallèle dans hig
 ```java
 tourGuideService.trackAllUsersInParallel(allUsers);
 ```
+Le test pour 100.000 utilisateurs est passé en 6min 42sec.
+
 ## Test : `highVolumeGetRewards()`
 
 ## Problème observé :
-Dans la version initiale, rewardsService.calculateRewards(u) est appelée de manière séquentielle, ce qui rend l'exécution extrêmement lente pour 100 000 utilisateurs.
+Dans la version initiale, rewardsService.calculateRewards(u) est appelée de manière séquentielle, 
+ce qui rend l'exécution extrêmement lente pour 100 000 utilisateurs.
 
 # Solution :
-Nous avons ajouté une méthode parallèle dans RewardsService pour paralléliser l'exécution des calculs de récompenses. La méthode a été ajoutée comme suit :
+Nous avons ajouté une méthode parallèle dans RewardsService pour paralléliser l'exécution des calculs de récompenses. 
+La méthode a été ajoutée comme suit :
 
 ```java
 public void calculateRewardsInParallel(List<User> users) {
@@ -283,7 +296,8 @@ rewardsService.calculateRewardsInParallel(allUsers);
 ## Résultat
 Les tests passent maintenant au vert pour 100 000 utilisateurs, et respectent les contraintes de temps (15 à 20 minutes).
 Les optimisations de parallélisation ont permis de rendre les tests réalistes pour un environnement de production, 
-et ont respecté les consignes du sujet qui autorisent les modifications dans les services, mais interdisent les changements dans les tests eux-mêmes.
+et ont respecté les consignes du sujet qui autorisent les modifications dans les services, 
+mais interdisent les changements dans les tests eux-mêmes.
 
 ## Concurrence en Java ?
 
@@ -309,7 +323,8 @@ Dans ToutGuideService :
 ```java
 private final Map<String, User> internalUserMap = new ConcurrentHashMap<>();
 ```
-Pour garantir la sécurité des accès aux collections manipulées en parallèle dans les services de géolocalisation et d’attribution de récompenses, 
+Pour garantir la sécurité des accès aux collections manipulées en parallèle dans les services de géolocalisation 
+et d’attribution de récompenses, 
 nous avons remplacé les ArrayList par des implémentations thread-safe (CopyOnWriteArrayList). 
 Cette mesure permet d’éviter les effets de bord et les erreurs imprévisibles dans un environnement concurrent.
 
